@@ -1,0 +1,16 @@
+-- Entire migration commented out to remove variants table
+-- CREATE TABLE IF NOT EXISTS variants (
+--   id SERIAL PRIMARY KEY,
+--   shopify_variant_id BIGINT UNIQUE NOT NULL,
+--   product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+--   title TEXT,
+--   base_price NUMERIC(10,2) NOT NULL,
+--   current_price NUMERIC(10,2) NOT NULL,
+--   total_purchases INTEGER DEFAULT 0,
+--   total_cashouts INTEGER DEFAULT 0,
+--   created_at TIMESTAMP DEFAULT NOW(),
+--   updated_at TIMESTAMP DEFAULT NOW()
+-- );
+-- 
+-- CREATE INDEX IF NOT EXISTS idx_variants_product_id ON variants(product_id);
+-- CREATE INDEX IF NOT EXISTS idx_variants_shopify_variant_id ON variants(shopify_variant_id); 
