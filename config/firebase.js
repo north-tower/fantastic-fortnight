@@ -1,5 +1,9 @@
 const admin = require('firebase-admin');
-const serviceAccount = require('./saas-68e2f-firebase-adminsdk-kui9j-5dba57b85a.json'); // <-- Replace with your actual path
+
+
+
+let serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),

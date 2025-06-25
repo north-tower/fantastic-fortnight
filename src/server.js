@@ -8,7 +8,7 @@ const productsRouter = require('../routes/products');
 const purchaseRouter = require('../routes/purchase');
 const cashoutRouter = require('../routes/cashout');
 const transactionsRouter = require('../routes/transactions');
-const webhooksRouter = require('../routes/webhooks');
+const webhooksRouter = require('../routes/webhooks')
 const http = require('http');
 const { setupWebSocket } = require('./websocket');
 
@@ -23,8 +23,8 @@ app.use(morgan('combined'));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // limit each IP to 100 requests per windowMs
 });
 app.use(limiter);
 
@@ -33,14 +33,12 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Mount routes
-app.use('/api/webhooks', webhooksRouter);
-app.use(express.json());
+// TODO: Mount routes here
 app.use('/api/products', productsRouter);
 app.use('/api/purchase', purchaseRouter);
 app.use('/api/cashout', cashoutRouter);
 app.use('/api/transactions', transactionsRouter);
-
+app.use('/api/webhooks', webhooksRouter);
 // 404 handler
 app.use((req, res, next) => {
   res.status(404).json({ error: 'Not found' });
@@ -52,15 +50,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// For Vercel: export the app
-module.exports = app;
+const server = http.createServer(app);
+setupWebSocket(server);
 
-// For local development: start the server
-if (process.env.NODE_ENV !== 'production') {
-  const server = http.createServer(app);
-  setupWebSocket(server);
-  
-  server.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-  });
-}
+server.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+}); 

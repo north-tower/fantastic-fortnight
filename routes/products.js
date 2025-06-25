@@ -27,10 +27,13 @@ const updateProductSchema = Joi.object({
 // GET /api/products
 router.get('/', async (req, res) => {
   try {
+    console.log('Fetching all products...');
     const products = await Product.getAll();
+    console.log('Products fetched successfully:', products.length);
     res.json(products);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch products' });
+    console.error('Error fetching products:', err);
+    res.status(500).json({ error: 'Failed to fetch products', details: err.message });
   }
 });
 
