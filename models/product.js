@@ -41,7 +41,9 @@ const Product = {
       product_id: product.id,
       price: newPrice,
       action_type: actionType,
-      timestamp: new Date()
+      timestamp: new Date(),
+      total_purchases: product.total_purchases,
+      total_cashouts: product.total_cashouts
     });
     return newPrice;
   },
