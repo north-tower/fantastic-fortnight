@@ -84,7 +84,7 @@ router.get('/:id/price-history', async (req, res) => {
     }
     
     // Get price history using the Firestore document ID
-    const history = await PriceHistory.getByProductId(product.id);
+    const history = await Product.getPriceHistory(product.id);
     res.json(history);
   } catch (err) {
     console.error('Price history error:', err);
