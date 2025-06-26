@@ -9,7 +9,7 @@ function calculateCurrentPrice(basePrice, totalPurchases, totalCashouts) {
   basePrice = Number(basePrice) || 0;
   totalPurchases = Number(totalPurchases) || 0;
   totalCashouts = Number(totalCashouts) || 0;
-  return parseFloat((basePrice + (totalPurchases * 0.20) - (totalCashouts * 0.20)).toFixed(2));
+  return parseFloat((basePrice + (totalPurchases * 0.25) - (totalCashouts * 0.25)).toFixed(2));
 }
 
 module.exports = { calculateCurrentPrice }; 
