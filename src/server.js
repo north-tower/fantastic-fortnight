@@ -15,11 +15,15 @@ const { setupWebSocket } = require('./websocket');
 const app = express();
 app.set('trust proxy', 1);
 
-// Middleware
-app.use(helmet());
-app.use(cors());
+// Use express.raw for Shopify webhooks to capture raw body for HMAC verification
+app.use('/api/webhooks', express.raw({ type: 'application/json' }));
+
+// Use express.json for all other routes
 app.use(express.json());
-app.use(morgan('combined'));
+
+app.use(cors());
+app.use(helmet());
+app.use(morgan('dev'));
 
 // Rate limiting
 const limiter = rateLimit({
