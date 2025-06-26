@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { pool } = require('../config/database');
+const db = require('../config/firebase');
 
 function randomAlphanumeric(length) {
   return crypto.randomBytes(length)
@@ -12,9 +12,9 @@ async function generateUniqueCode() {
   let code, exists;
   do {
     code = `${randomAlphanumeric(3)}-${randomAlphanumeric(4)}-${randomAlphanumeric(4)}`;
-    // Check for collision in the database
-    const { rows } = await pool.query('SELECT 1 FROM transactions WHERE unique_code = $1', [code]);
-    exists = rows.length > 0;
+    // Check for collision in Firestore
+    const snapshot = await db.collection('transactions').where('unique_code', '==', code).get();
+    exists = !snapshot.empty;
   } while (exists);
   return code;
 }

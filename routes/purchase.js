@@ -23,26 +23,36 @@ const purchaseSchema = Joi.object({
 router.post('/', validate(purchaseSchema), async (req, res) => {
   try {
     const { shopify_product_id, user_email, purchase_price, shopify_order_id } = req.body;
+    console.log('Purchase request received:', { shopify_product_id, user_email, purchase_price, shopify_order_id });
+    
     const product = await Product.getByShopifyId(shopify_product_id);
     if (!product) return res.status(404).json({ error: 'Product not found' });
+    console.log('Product found:', product.id);
 
     // Update product purchase count
     await Product.update(product.id, { total_purchases: product.total_purchases + 1 });
+    console.log('Product purchase count updated');
+    
     // Fetch the updated product
     const updatedProduct = await Product.getById(product.id);
+    console.log('Updated product fetched');
+    
     // Now update price and history with the correct count
-    // (Assume updatePriceAndHistory is now a Product method or handled in priceService)
     const newPrice = await Product.updatePriceAndHistory(updatedProduct, 'purchase');
+    console.log('Price and history updated, new price:', newPrice);
 
     // Update price on Shopify for the product
     try {
       await updateShopifyProductPrice(shopify_product_id, newPrice);
+      console.log('Shopify price updated successfully');
     } catch (shopifyErr) {
-      return res.status(500).json({ error: 'Failed to update Shopify price' });
+      console.error('Shopify price update failed:', shopifyErr);
+      return res.status(500).json({ error: 'Failed to update Shopify price', details: shopifyErr.message });
     }
 
     // Generate unique code
     const unique_code = await generateUniqueCode();
+    console.log('Unique code generated:', unique_code);
 
     // Create transaction
     const transaction = await Transaction.create({
@@ -52,10 +62,12 @@ router.post('/', validate(purchaseSchema), async (req, res) => {
       purchase_price,
       shopify_order_id,
     });
+    console.log('Transaction created:', transaction.id);
 
     res.status(201).json({ transaction });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to process purchase' });
+    console.error('Purchase processing error:', err);
+    res.status(500).json({ error: 'Failed to process purchase', details: err.message, stack: err.stack });
   }
 });
 
