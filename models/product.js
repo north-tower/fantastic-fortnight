@@ -49,11 +49,25 @@ const Product = {
   },
 
   async getPriceHistory(productId) {
-    const snapshot = await db.collection('price_history').where('product_id', '==', productId).get();
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const snapshot = await db.collection('price_history')
+      .where('product_id', '==', productId)
+      .orderBy('timestamp', 'asc')
+      .get();
+
+    const history = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        price: data.price,
+        action_type: data.action_type,
+        timestamp: data.timestamp,
+        total_purchases: data.total_purchases || 0,  // Default to 0 if undefined
+        total_cashouts: data.total_cashouts || 0     // Default to 0 if undefined
+      };
+    });
+
+    console.log('Price history retrieved:', history);  // Debug log
+    return history;
   },
 };
 
