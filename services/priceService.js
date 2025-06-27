@@ -1,8 +1,9 @@
 const Product = require('../models/product');
 const { broadcastPriceUpdate } = require('../src/websocket');
 const Transaction = require('../models/transaction');
-const { updateProductPrice, generateUniqueCode } = require('./shopifyService');
+const { updateShopifyProductPrice } = require('../services/shopify');
 const PriceHistory = require('../models/priceHistory');
+const { generateUniqueCode } = require('../utils/codeGenerator');
 
 function calculateNewPrice(basePrice, totalPurchases, totalCashouts) {
   basePrice = Number(basePrice) || 0;
@@ -13,34 +14,69 @@ function calculateNewPrice(basePrice, totalPurchases, totalCashouts) {
 
 async function processPurchase(orderData) {
   // orderData: Shopify order payload
-  // 1. Idempotency: check if order already processed
   const shopifyOrderId = orderData.id.toString();
   const userEmail = orderData.email;
   const results = [];
+  
   for (const item of orderData.line_items) {
     const productId = item.product_id.toString();
     const quantity = item.quantity;
     const purchasePrice = parseFloat(item.price);
-    // Check if transaction already exists
+    
+    // 1. Idempotency: check if order already processed FIRST
     const existing = await Transaction.getByShopifyOrderId(shopifyOrderId, productId);
     if (existing) {
+      console.log(`Order ${shopifyOrderId} for product ${productId} already processed, skipping`);
       results.push({ productId, status: 'duplicate' });
       continue;
     }
-    // Calculate new price
-    const oldPrice = existing ? existing.purchase_price : 0;
-    const newPrice = calculateNewPrice(existing ? existing.base_price : 0, existing ? existing.total_purchases : 0, existing ? existing.total_cashouts : 0);
-    // Update price in Shopify
-    await updateProductPrice(productId, productId, newPrice);
-    // Log price history
+    
+    // 2. Fetch product from Firestore
+    const product = await Product.getByShopifyId(productId);
+    if (!product) {
+      console.error('Product not found for productId:', productId);
+      results.push({ productId, status: 'product_not_found' });
+      continue;
+    }
+    
+    console.log('Product before purchase:', product);
+    
+    // 3. Increment total_purchases
+    await Product.update(product.id, { total_purchases: (product.total_purchases || 0) + 1 });
+    
+    // 4. Fetch updated product
+    const updatedProduct = await Product.getById(product.id);
+    console.log('Product after incrementing total_purchases:', updatedProduct);
+    
+    // 5. Calculate new price
+    const newPrice = calculateNewPrice(updatedProduct.base_price, updatedProduct.total_purchases, updatedProduct.total_cashouts);
+    console.log('Calculated new price:', newPrice);
+    
+    // 6. Update product price in Firestore
+    await Product.update(product.id, { current_price: newPrice });
+    
+    // 7. Log price history
     await PriceHistory.create({
-      product_id: productId,
+      product_id: product.id,
       price: newPrice,
       action_type: 'purchase',
+      total_purchases: updatedProduct.total_purchases,
+      total_cashouts: updatedProduct.total_cashouts,
+      timestamp: new Date()
     });
-    // Generate unique code
-    const uniqueCode = generateUniqueCode();
-    // Create transaction
+    
+    // 8. Update price in Shopify
+    try {
+      await updateShopifyProductPrice(productId, newPrice);
+      console.log('Shopify price updated for productId:', productId, 'to', newPrice);
+    } catch (err) {
+      console.error('Failed to update Shopify price for productId:', productId, err);
+    }
+    
+    // 9. Generate unique code
+    const uniqueCode = await generateUniqueCode();
+    
+    // 10. Create transaction
     await Transaction.create({
       product_id: productId,
       unique_code: uniqueCode,
@@ -49,8 +85,9 @@ async function processPurchase(orderData) {
       shopify_order_id: shopifyOrderId,
       status: 'active',
     });
-    // Broadcast price update
-    broadcastPriceUpdate(productId, newPrice, oldPrice);
+    
+    // 11. Broadcast price update
+    broadcastPriceUpdate(productId, newPrice, product.current_price);
     results.push({ productId, status: 'processed', uniqueCode });
   }
   return results;
@@ -83,7 +120,7 @@ async function processOrderUpdate(orderData) {
       const oldPrice = transaction.purchase_price;
       const newPrice = calculateNewPrice(transaction.base_price, transaction.total_purchases, transaction.total_cashouts);
       // Update price in Shopify
-      await updateProductPrice(productId, productId, newPrice);
+      await updateShopifyProductPrice(productId, newPrice);
       // Log price history
       await PriceHistory.create({
         product_id: productId,

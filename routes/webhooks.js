@@ -30,8 +30,11 @@ const verifyShopifyWebhook = (req, res, next) => {
 // POST /api/webhooks/order-created
 router.post('/order-created', verifyShopifyWebhook, async (req, res) => {
   try {
+    console.log('Webhook /order-created received. Raw body:', req.body);
     const orderData = req.body;
+    console.log('Parsed orderData:', JSON.stringify(orderData, null, 2));
     const result = await processPurchase(orderData);
+    console.log('processPurchase result:', JSON.stringify(result, null, 2));
     res.status(200).json({ message: 'Order created webhook processed', result });
   } catch (err) {
     console.error('Order created webhook error:', err);
