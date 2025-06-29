@@ -5,6 +5,7 @@ const Transaction = require('../models/transaction');
 const Cashout = require('../models/cashout');
 const validate = require('../middleware/validate');
 const { updateShopifyProductPrice } = require('../services/shopify');
+const db = require('../config/firebase');
 
 const router = express.Router();
 
@@ -88,6 +89,143 @@ router.post('/', validate(cashoutSchema), async (req, res) => {
   } catch (err) {
     console.error('Failed to process cashout:', err);
     res.status(500).json({ error: 'Failed to process cashout', details: err.message, stack: err.stack });
+  }
+});
+
+// GET /api/cashout - List all cashouts
+router.get('/', async (req, res) => {
+  try {
+    const { page = 1, limit = 20, user_email, transaction_id } = req.query;
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    
+    console.log('Cashout list request:', { page: pageNum, limit: limitNum, user_email, transaction_id });
+    
+    let query = db.collection('cashouts');
+    
+    // Add filters if provided
+    if (user_email) {
+      query = query.where('user_email', '==', user_email);
+    }
+    
+    if (transaction_id) {
+      query = query.where('transaction_id', '==', transaction_id);
+    }
+    
+    // Get total count for pagination
+    const countSnapshot = await query.get();
+    const total = countSnapshot.docs.length;
+    
+    // Apply pagination
+    const offset = (pageNum - 1) * limitNum;
+    const cashoutsSnapshot = await query
+      .orderBy('timestamp', 'desc')
+      .limit(limitNum)
+      .offset(offset)
+      .get();
+    
+    const cashouts = [];
+    
+    for (const doc of cashoutsSnapshot.docs) {
+      const cashoutData = { id: doc.id, ...doc.data() };
+      
+      // Get transaction details for each cashout
+      try {
+        const transactionDoc = await db.collection('transactions').doc(cashoutData.transaction_id).get();
+        if (transactionDoc.exists) {
+          cashoutData.transaction = { id: transactionDoc.id, ...transactionDoc.data() };
+        }
+      } catch (err) {
+        console.error('Error fetching transaction for cashout:', cashoutData.id, err);
+        cashoutData.transaction = null;
+      }
+      
+      // Get product details for each cashout
+      if (cashoutData.transaction) {
+        try {
+          const productDoc = await db.collection('products')
+            .where('shopify_product_id', '==', cashoutData.transaction.product_id)
+            .limit(1)
+            .get();
+          
+          if (!productDoc.empty) {
+            const productData = productDoc.docs[0].data();
+            cashoutData.product = { 
+              id: productDoc.docs[0].id, 
+              ...productData 
+            };
+          }
+        } catch (err) {
+          console.error('Error fetching product for cashout:', cashoutData.id, err);
+          cashoutData.product = null;
+        }
+      }
+      
+      cashouts.push(cashoutData);
+    }
+    
+    const response = {
+      cashouts,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total,
+        totalPages: Math.ceil(total / limitNum),
+        hasNext: pageNum * limitNum < total,
+        hasPrev: pageNum > 1
+      }
+    };
+    
+    console.log(`Returning ${cashouts.length} cashouts out of ${total} total`);
+    res.json(response);
+    
+  } catch (err) {
+    console.error('Failed to fetch cashouts:', err);
+    res.status(500).json({ error: 'Failed to fetch cashouts', details: err.message });
+  }
+});
+
+// POST /api/cashout/:id/mark-paid - Mark cashout as paid
+router.post('/:id/mark-paid', async (req, res) => {
+  try {
+    const cashoutId = req.params.id;
+    console.log('Marking cashout as paid:', cashoutId);
+    
+    // Get the cashout
+    const cashoutDoc = await db.collection('cashouts').doc(cashoutId).get();
+    if (!cashoutDoc.exists) {
+      return res.status(404).json({ error: 'Cashout not found' });
+    }
+    
+    const cashoutData = cashoutDoc.data();
+    
+    // Check if already paid
+    if (cashoutData.status === 'paid') {
+      return res.status(400).json({ error: 'Cashout is already marked as paid' });
+    }
+    
+    // Update cashout status to paid
+    await db.collection('cashouts').doc(cashoutId).update({
+      status: 'paid',
+      paid_at: new Date(),
+      paid_by: req.body.admin_user || 'admin' // You can add admin authentication later
+    });
+    
+    console.log('Cashout marked as paid:', cashoutId);
+    
+    // Get updated cashout data
+    const updatedDoc = await db.collection('cashouts').doc(cashoutId).get();
+    const updatedCashout = { id: updatedDoc.id, ...updatedDoc.data() };
+    
+    res.json({ 
+      success: true, 
+      message: 'Cashout marked as paid successfully',
+      cashout: updatedCashout 
+    });
+    
+  } catch (err) {
+    console.error('Failed to mark cashout as paid:', err);
+    res.status(500).json({ error: 'Failed to mark cashout as paid', details: err.message });
   }
 });
 
