@@ -208,7 +208,7 @@ router.post('/:id/mark-paid', async (req, res) => {
     await db.collection('cashouts').doc(cashoutId).update({
       status: 'paid',
       paid_at: new Date(),
-      paid_by: req.body.admin_user || 'admin' // You can add admin authentication later
+      paid_by: (req.body && req.body.admin_user) || 'admin' // Safe access with fallback
     });
     
     console.log('Cashout marked as paid:', cashoutId);
