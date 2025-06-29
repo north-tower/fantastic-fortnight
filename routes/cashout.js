@@ -27,7 +27,18 @@ router.post('/', validate(cashoutSchema), async (req, res) => {
     const transaction = await Transaction.getByUniqueCodeAndEmail(unique_code, user_email);
     console.log('Transaction found:', transaction);
     if (!transaction) return res.status(404).json({ error: 'Transaction not found' });
-    const product = await Product.getById(transaction.product_id);
+    
+    // Check if this transaction has already been cashed out
+    const existingCashout = await Cashout.getByTransactionId(transaction.id);
+    if (existingCashout) {
+      return res.status(400).json({ 
+        error: 'Transaction already cashed out', 
+        cashout_id: existingCashout.id,
+        cashed_out_at: existingCashout.timestamp 
+      });
+    }
+    
+    const product = await Product.getByShopifyId(transaction.product_id);
     console.log('Product found:', product);
     if (!product) return res.status(404).json({ error: 'Product not found' });
 
@@ -54,14 +65,24 @@ router.post('/', validate(cashoutSchema), async (req, res) => {
     }
 
     // Create cashout record
-    const cashout = await Cashout.create({
+    const cashoutData = {
       transaction_id: transaction.id,
       user_email,
       profit_amount,
       cashout_price: product.current_price,
-      email_request,
-    });
+    };
+    
+    // Only add email_request if it's not undefined
+    if (email_request !== undefined) {
+      cashoutData.email_request = email_request;
+    }
+    
+    const cashout = await Cashout.create(cashoutData);
     console.log('Cashout record created:', cashout);
+
+    // Mark transaction as cashed out
+    await Transaction.setCashedOut(transaction.id);
+    console.log('Transaction marked as cashed out');
 
     res.status(201).json({ cashout });
   } catch (err) {

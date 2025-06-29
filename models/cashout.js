@@ -8,6 +8,15 @@ const Cashout = {
     });
     const doc = await ref.get();
     return { id: doc.id, ...doc.data() };
+  },
+
+  async getByTransactionId(transactionId) {
+    const snapshot = await db.collection('cashouts')
+      .where('transaction_id', '==', transactionId)
+      .limit(1)
+      .get();
+    
+    return snapshot.docs.length > 0 ? { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } : null;
   }
 };
 

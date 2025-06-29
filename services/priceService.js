@@ -73,8 +73,8 @@ async function processPurchase(orderData) {
       console.error('Failed to update Shopify price for productId:', productId, err);
     }
     
-    // 9. Generate unique code
-    const uniqueCode = await generateUniqueCode();
+    // 9. Use Shopify order number as unique code
+    const uniqueCode = `#${orderData.order_number}`;
     
     // 10. Create transaction
     await Transaction.create({

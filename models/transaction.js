@@ -29,6 +29,10 @@ const Transaction = {
 
   async setCancelled(id) {
     await db.collection('transactions').doc(id).update({ status: 'cancelled' });
+  },
+
+  async setCashedOut(id) {
+    await db.collection('transactions').doc(id).update({ status: 'cashed_out' });
   }
 };
 
